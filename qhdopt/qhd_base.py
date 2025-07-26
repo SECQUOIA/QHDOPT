@@ -4,7 +4,7 @@ from typing import List, Dict, Union, Optional
 from sympy import lambdify, Symbol, Function
 import jax.numpy as jnp
 
-from qhdopt.backend import dwave_backend, ionq_backend, qutip_backend
+from qhdopt.backend import dwave_backend, dwave_backend_sim, ionq_backend, qutip_backend
 from qhdopt.response import Response
 from qhdopt.utils.function_preprocessing_utils import decompose_function
 
@@ -79,6 +79,45 @@ class QHD_Base:
             chain_strength_ratio=chain_strength_ratio
         )
 
+    def dwave_sim_setup(
+        self,
+        resolution: int,
+        shots: int = 100,
+        embedding_scheme: str = "unary",
+        anneal_schedule: Optional[List[List[int]]] = None,
+        penalty_coefficient: float = 0,
+        penalty_ratio: float = 0.75,
+        chain_strength_ratio: float = 1.05,
+        **sampler_kwargs
+    ) -> None:
+        """
+        Sets up the D-Wave simulated annealing backend for optimization.
+        This backend doesn't require an API key and runs simulated annealing locally using neal.
+
+        Args:
+            resolution: Resolution for discretizing variable space.
+            shots: Number of sampling shots for simulated annealing.
+            embedding_scheme: Embedding scheme for problem mapping.
+            anneal_schedule: Custom annealing schedule.
+            penalty_coefficient: Coefficient for penalty terms.
+            penalty_ratio: Ratio of penalty terms in the objective function.
+            chain_strength_ratio: Ratio of strength of chains in embedding.
+            **sampler_kwargs: Additional arguments passed to SimulatedAnnealingSampler.
+        """
+        self.backend = dwave_backend_sim.DWaveBackendSim(
+            resolution=resolution,
+            dimension=self.dimension,
+            univariate_dict=self.univariate_dict,
+            bivariate_dict=self.bivariate_dict,
+            shots=shots,
+            embedding_scheme=embedding_scheme,
+            anneal_schedule=anneal_schedule,
+            penalty_coefficient=penalty_coefficient,
+            penalty_ratio=penalty_ratio,
+            chain_strength_ratio=chain_strength_ratio,
+            **sampler_kwargs
+        )
+
     def ionq_setup(
         self,
         resolution: int,
@@ -90,6 +129,7 @@ class QHD_Base:
         time_discretization: int = 10,
         gamma: float = 5,
         on_simulator: bool = False,
+        backend: str = "Harmony", # EDIT: Added backend parameter
     ) -> None:
         """
         Sets up the IonQ backend for quantum optimization.
@@ -104,6 +144,7 @@ class QHD_Base:
             time_discretization: Number of time steps for discretization.
             gamma: Coefficient for transverse field in quantum annealing.
             on_simulator: Flag to run on simulator instead of actual device.
+            backend: IonQ backend to use ("simulator", "qpu.aria-1", "qpu.aria-2", etc.).
         """
         self.backend = ionq_backend.IonQBackend(
             resolution=resolution,
@@ -118,6 +159,7 @@ class QHD_Base:
             time_discretization=time_discretization,
             on_simulator=on_simulator,
             gamma=gamma,
+            backend=backend, # EDIT: Added backend parameter
         )
 
     def qutip_setup(

@@ -135,6 +135,48 @@ class QHD:
         self.shots = shots
         self.post_processing_method = post_processing_method
 
+    def dwave_sim_setup(
+            self,
+            resolution: int,
+            shots: int = 100,
+            embedding_scheme: str = "unary",
+            anneal_schedule: Optional[List[List[int]]] = None,
+            penalty_coefficient: float = 0,
+            penalty_ratio: float = 0.75,
+            chain_strength_ratio: float = 1.05,
+            post_processing_method: str = "TNC",
+            **sampler_kwargs
+    ):
+        """
+        Configures the settings for quantum optimization using D-Wave simulated annealing.
+        This method doesn't require an API key and runs simulated annealing locally using neal.
+
+        Args:
+            resolution: The number of bits representing each variable.
+            shots: The number of times simulated annealing runs to find the solution.
+            embedding_scheme: Method used for mapping logical variables to physical qubits.
+            anneal_schedule: Custom annealing schedule for simulated annealing.
+            penalty_coefficient: Coefficient used to enforce constraints in the model.
+            penalty_ratio: Ratio used to calculate penalty coefficients.
+            chain_strength_ratio: Ratio of strength of chains in embedding.
+            post_processing_method: Classical optimization method used after simulated annealing.
+            **sampler_kwargs: Additional arguments passed to SimulatedAnnealingSampler.
+        """
+        func, syms = self.generate_affined_func()
+        self.qhd_base = QHD_Base(func, syms, self.info)
+        self.qhd_base.dwave_sim_setup(
+            resolution=resolution,
+            shots=shots,
+            embedding_scheme=embedding_scheme,
+            anneal_schedule=anneal_schedule,
+            penalty_coefficient=penalty_coefficient,
+            penalty_ratio=penalty_ratio,
+            chain_strength_ratio=chain_strength_ratio,
+            **sampler_kwargs
+        )
+        self.shots = shots
+        self.post_processing_method = post_processing_method
+
     def ionq_setup(
             self,
             resolution: int,
@@ -147,6 +189,7 @@ class QHD:
             gamma: float = 5,
             post_processing_method: str = "TNC",
             on_simulator: bool = False,
+            backend: str = "simulator",
     ):
         """
         Configures the settings for running QHD using IonQ systems.
@@ -174,7 +217,8 @@ class QHD:
             penalty_coefficient=penalty_coefficient,
             time_discretization=time_discretization,
             gamma=gamma,
-            on_simulator=on_simulator
+            on_simulator=on_simulator,
+            backend=backend
         )
         self.shots = shots
         self.post_processing_method = post_processing_method
@@ -338,8 +382,9 @@ class QHD:
                 opt_samples.append(None)
                 continue
             sample_start_time = time.time()
-            x0 = jnp.array(samples[k])
             if solver == "TNC":
+                # Use numpy array with explicit float64 for TNC optimizer
+                x0 = np.array(samples[k], dtype=np.float64) #maybe changing datatype does anything to benchmarks?
                 result = minimize(
                     f_eval_jit,
                     x0,
@@ -350,6 +395,8 @@ class QHD:
                 )
             elif solver == "IPOPT":
                 import cyipopt
+                # Use JAX array for IPOPT optimizer  
+                x0 = jnp.array(samples[k])
                 result = cyipopt.minimize_ipopt(
                     f_eval_jit,
                     x0,
