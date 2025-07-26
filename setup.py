@@ -17,10 +17,10 @@ setup(
     install_requires=[
         "jax[cpu]",
         "sympy",
-        "scipy>=1.10.1,<1.12",
-        "numpy<1.28.0",
+        "scipy>=1.10.1",
+        "numpy>=1.20.0",
         "jaxlib",
-        "qutip<5",
+        "qutip>=4.0",
         "simuq>=0.3.1",
         "dwave-system",
         "qiskit",
