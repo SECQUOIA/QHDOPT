@@ -37,16 +37,16 @@ class QHD:
         self.decoded_samples = None
         self.post_processed_samples = None
         self.info = dict()
+        self.bounds = bounds
         self.syms = syms
         self.syms_index = {syms[i]: i for i in range(len(syms))}
         self.func = func
-        self.bounds = bounds
         self.lambda_numpy = lambdify(syms, func, jnp)
         self.dimension = len(syms)
         if len(syms) != len(func.free_symbols):
             warnings.warn("The number of function free symbols does not match the number of syms.",
                           RuntimeWarning)
-
+    
     def generate_affined_func(self) -> Tuple[Function, List[Symbol]]:
         """
         Internal method for generating a new Sympy function with an
@@ -121,6 +121,7 @@ class QHD:
         """
         func, syms = self.generate_affined_func()
         self.qhd_base = QHD_Base(func, syms, self.info)
+            
         self.qhd_base.dwave_setup(
             resolution=resolution,
             shots=shots,
@@ -135,43 +136,36 @@ class QHD:
         self.shots = shots
         self.post_processing_method = post_processing_method
 
-    def dwave_sim_setup(
+    def sim_annealing_setup(
             self,
             resolution: int,
             shots: int = 100,
             embedding_scheme: str = "unary",
-            anneal_schedule: Optional[List[List[int]]] = None,
             penalty_coefficient: float = 0,
             penalty_ratio: float = 0.75,
-            chain_strength_ratio: float = 1.05,
             post_processing_method: str = "TNC",
             **sampler_kwargs
     ):
         """
-        Configures the settings for quantum optimization using D-Wave simulated annealing.
-        This method doesn't require an API key and runs simulated annealing locally using neal.
+        Configures the settings for classical simulated annealing (local D-Wave sampler).
 
         Args:
             resolution: The number of bits representing each variable.
             shots: The number of times simulated annealing runs to find the solution.
             embedding_scheme: Method used for mapping logical variables to physical qubits.
-            anneal_schedule: Custom annealing schedule for simulated annealing.
             penalty_coefficient: Coefficient used to enforce constraints in the model.
             penalty_ratio: Ratio used to calculate penalty coefficients.
-            chain_strength_ratio: Ratio of strength of chains in embedding.
             post_processing_method: Classical optimization method used after simulated annealing.
             **sampler_kwargs: Additional arguments passed to SimulatedAnnealingSampler.
         """
         func, syms = self.generate_affined_func()
         self.qhd_base = QHD_Base(func, syms, self.info)
-        self.qhd_base.dwave_sim_setup(
+        self.qhd_base.sim_annealing_setup(
             resolution=resolution,
             shots=shots,
             embedding_scheme=embedding_scheme,
-            anneal_schedule=anneal_schedule,
             penalty_coefficient=penalty_coefficient,
             penalty_ratio=penalty_ratio,
-            chain_strength_ratio=chain_strength_ratio,
             **sampler_kwargs
         )
         self.shots = shots
@@ -208,6 +202,7 @@ class QHD:
         """
         func, syms = self.generate_affined_func()
         self.qhd_base = QHD_Base(func, syms, self.info)
+        
         self.qhd_base.ionq_setup(
             resolution=resolution,
             shots=shots,
@@ -217,8 +212,7 @@ class QHD:
             penalty_coefficient=penalty_coefficient,
             time_discretization=time_discretization,
             gamma=gamma,
-            on_simulator=on_simulator,
-            backend=backend
+            on_simulator=on_simulator
         )
         self.shots = shots
         self.post_processing_method = post_processing_method
@@ -247,6 +241,7 @@ class QHD:
         """
         func, syms = self.generate_affined_func()
         self.qhd_base = QHD_Base(func, syms, self.info)
+        
         self.qhd_base.qutip_setup(
             resolution=resolution,
             shots=shots,
@@ -382,9 +377,10 @@ class QHD:
                 opt_samples.append(None)
                 continue
             sample_start_time = time.time()
+            x0 = jnp.array(samples[k])
             if solver == "TNC":
                 # Use numpy array with explicit float64 for TNC optimizer
-                x0 = np.array(samples[k], dtype=np.float64) #maybe changing datatype does anything to benchmarks?
+                x0 = np.array(samples[k], dtype=np.float64)
                 result = minimize(
                     f_eval_jit,
                     x0,
@@ -395,7 +391,6 @@ class QHD:
                 )
             elif solver == "IPOPT":
                 import cyipopt
-                # Use JAX array for IPOPT optimizer  
                 x0 = jnp.array(samples[k])
                 result = cyipopt.minimize_ipopt(
                     f_eval_jit,
@@ -510,17 +505,20 @@ class QHD:
         """
         var can be
         - None (return all values)
-        - a Symbol (return the value of the symbol)
-        - a list of Symbols (return a list of the values of the symbols)
+        - a Symbol (return the value of the symbol) - only for SymPy mode
+        - a list of Symbols (return a list of the values of the symbols) - only for SymPy mode
+        - an integer index (return the value at that index) - for QP mode
+        - a list of integer indices (return values at those indices) - for QP mode
         """
 
         values = self.response.minimizer
 
         if var is None:
             return values
+        # For SymPy problems, use symbols
         if isinstance(var, sympy.Symbol):
             return values[self.syms_index[var]]
-        # Otherwise, v is a list of Symbols.
+        # Otherwise, var is a list of Symbols
         return [values[self.syms_index[v]] for v in var]
     
     def solver_param_diagnose(self):
