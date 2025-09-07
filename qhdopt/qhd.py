@@ -37,10 +37,10 @@ class QHD:
         self.decoded_samples = None
         self.post_processed_samples = None
         self.info = dict()
-        self.bounds = bounds
         self.syms = syms
         self.syms_index = {syms[i]: i for i in range(len(syms))}
         self.func = func
+        self.bounds = bounds
         self.lambda_numpy = lambdify(syms, func, jnp)
         self.dimension = len(syms)
         if len(syms) != len(func.free_symbols):
@@ -183,7 +183,6 @@ class QHD:
             gamma: float = 5,
             post_processing_method: str = "TNC",
             on_simulator: bool = False,
-            backend: str = "simulator",
     ):
         """
         Configures the settings for running QHD using IonQ systems.
@@ -377,9 +376,9 @@ class QHD:
                 opt_samples.append(None)
                 continue
             sample_start_time = time.time()
-            x0 = jnp.array(samples[k])
             if solver == "TNC":
-                # Use numpy array with explicit float64 for TNC optimizer
+                # TNC: Truncated Newton Conjugate Gradient optimizer
+                # Use numpy array with explicit float64 for compatibility with TNC optimizer
                 x0 = np.array(samples[k], dtype=np.float64)
                 result = minimize(
                     f_eval_jit,
@@ -505,17 +504,14 @@ class QHD:
         """
         var can be
         - None (return all values)
-        - a Symbol (return the value of the symbol) - only for SymPy mode
-        - a list of Symbols (return a list of the values of the symbols) - only for SymPy mode
-        - an integer index (return the value at that index) - for QP mode
-        - a list of integer indices (return values at those indices) - for QP mode
+        - a Symbol (return the value of the symbol)
+        - a list of Symbols (return a list of the values of the symbols)
         """
 
         values = self.response.minimizer
 
         if var is None:
             return values
-        # For SymPy problems, use symbols
         if isinstance(var, sympy.Symbol):
             return values[self.syms_index[var]]
         # Otherwise, var is a list of Symbols
