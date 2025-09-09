@@ -140,7 +140,6 @@ class QHD:
             self,
             resolution: int,
             shots: int = 100,
-            embedding_scheme: str = "unary",
             penalty_coefficient: float = 0,
             penalty_ratio: float = 0.75,
             post_processing_method: str = "TNC",
@@ -152,7 +151,6 @@ class QHD:
         Args:
             resolution: The number of bits representing each variable.
             shots: The number of times simulated annealing runs to find the solution.
-            embedding_scheme: Method used for mapping logical variables to physical qubits.
             penalty_coefficient: Coefficient used to enforce constraints in the model.
             penalty_ratio: Ratio used to calculate penalty coefficients.
             post_processing_method: Classical optimization method used after simulated annealing.
@@ -160,10 +158,10 @@ class QHD:
         """
         func, syms = self.generate_affined_func()
         self.qhd_base = QHD_Base(func, syms, self.info)
+        
         self.qhd_base.sim_annealing_setup(
             resolution=resolution,
             shots=shots,
-            embedding_scheme=embedding_scheme,
             penalty_coefficient=penalty_coefficient,
             penalty_ratio=penalty_ratio,
             **sampler_kwargs

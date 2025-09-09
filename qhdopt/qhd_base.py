@@ -2,7 +2,7 @@ import time
 from typing import List, Dict, Union, Optional
 
 from sympy import lambdify, Symbol, Function
-import numpy as jnp
+import jax.numpy as jnp
 
 from qhdopt.backend import dwave_backend, sim_annealing_backend, ionq_backend, qutip_backend
 from qhdopt.response import Response
@@ -88,7 +88,6 @@ class QHD_Base:
         self,
         resolution: int,
         shots: int = 100,
-        embedding_scheme: str = "unary",
         penalty_coefficient: float = 0,
         penalty_ratio: float = 0.75,
         **sampler_kwargs
@@ -100,7 +99,6 @@ class QHD_Base:
         Args:
             resolution: Resolution for discretizing variable space.
             shots: Number of sampling shots for simulated annealing.
-            embedding_scheme: Embedding scheme for problem mapping.
             penalty_coefficient: Coefficient for penalty terms.
             penalty_ratio: Ratio of penalty terms in the objective function.
             **sampler_kwargs: Additional arguments passed to SimulatedAnnealingSampler.
@@ -112,7 +110,6 @@ class QHD_Base:
             univariate_dict=self.univariate_dict,
             bivariate_dict=self.bivariate_dict,
             shots=shots,
-            embedding_scheme=embedding_scheme,
             penalty_coefficient=penalty_coefficient,
             penalty_ratio=penalty_ratio,
             **sampler_kwargs
