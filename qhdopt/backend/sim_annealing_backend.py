@@ -19,12 +19,12 @@ class SimulatedAnnealingBackend(Backend):
                  univariate_dict,
                  bivariate_dict,
                  shots=100,
-                 embedding_scheme="unary",
                  penalty_coefficient=0,
                  penalty_ratio=0.75,
                  **sampler_kwargs):
-        super().__init__(resolution, dimension, shots, embedding_scheme, univariate_dict,
-                         bivariate_dict)
+        # Classical SA: no hardware embedding; use a fixed embedding label for decoding (unary)
+        super().__init__(resolution, dimension, shots, "unary",
+                         univariate_dict, bivariate_dict)
         # Penalty coefficient for unary embedding
         self.penalty_coefficient = penalty_coefficient
         self.penalty_ratio = penalty_ratio
@@ -41,12 +41,13 @@ class SimulatedAnnealingBackend(Backend):
 
         qs = QSystem()
         qubits = [Qubit(qs) for _ in range(len(self.qubits))]
-        qs.add_evolution(self.S_x(qubits) + self.H_p(qubits, self.univariate_dict, self.bivariate_dict), 1)
+        # For classical SA, estimate scale from Ising terms only (no transverse S_x)
+        qs.add_evolution(self.H_p(qubits, self.univariate_dict, self.bivariate_dict), 1)
         dwp = SimulatedAnnealingProvider(**self.sampler_kwargs)
         h, J = dwp.compile(qs)
         max_strength = np.max(np.abs(list(h) + list(J.values())))
         penalty_coefficient = (
-            self.penalty_ratio * max_strength if self.embedding_scheme == "unary" else 0
+            self.penalty_ratio * max_strength 
         )
         return penalty_coefficient
 
@@ -93,7 +94,9 @@ class SimulatedAnnealingBackend(Backend):
         self.dwave_response = self.dwp.run(shots=self.shots)
         info["backend_time"] = time.time() - start_run_time
         # Simulated annealing runs locally, so machine time equals backend time
-        info["average_qpu_time"] = info["backend_time"] / self.shots
+        avg = info["backend_time"] / self.shots if self.shots else 0.0
+        # descriptive and backward-compatible keys
+        info["average_sample_time"] = avg
         info["time_on_machine"] = info["backend_time"]
         info["overhead_time"] = 0.0
 
@@ -119,7 +122,7 @@ class SimulatedAnnealingBackend(Backend):
         """
         penalty_coefficient = self.calc_penalty_coefficient()
         self.qs.add_evolution(
-            self.S_x(self.qubits) + self.H_p(self.qubits, self.univariate_dict, self.bivariate_dict) + penalty_coefficient * self.H_pen(self.qubits), 1
+            self.H_p(self.qubits, self.univariate_dict, self.bivariate_dict) + penalty_coefficient * self.H_pen(self.qubits), 1
         )
 
         dwp = SimulatedAnnealingProvider(**self.sampler_kwargs)
