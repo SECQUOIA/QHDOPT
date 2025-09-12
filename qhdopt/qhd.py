@@ -46,7 +46,7 @@ class QHD:
         if len(syms) != len(func.free_symbols):
             warnings.warn("The number of function free symbols does not match the number of syms.",
                           RuntimeWarning)
-
+    
     def generate_affined_func(self) -> Tuple[Function, List[Symbol]]:
         """
         Internal method for generating a new Sympy function with an
@@ -121,6 +121,7 @@ class QHD:
         """
         func, syms = self.generate_affined_func()
         self.qhd_base = QHD_Base(func, syms, self.info)
+            
         self.qhd_base.dwave_setup(
             resolution=resolution,
             shots=shots,
@@ -131,6 +132,39 @@ class QHD:
             penalty_coefficient=penalty_coefficient,
             penalty_ratio=penalty_ratio,
             chain_strength_ratio=chain_strength_ratio,
+        )
+        self.shots = shots
+        self.post_processing_method = post_processing_method
+
+    def sim_annealing_setup(
+            self,
+            resolution: int,
+            shots: int = 100,
+            penalty_coefficient: float = 0,
+            penalty_ratio: float = 0.75,
+            post_processing_method: str = "TNC",
+            **sampler_kwargs
+    ):
+        """
+        Configures the settings for classical simulated annealing (local D-Wave sampler).
+
+        Args:
+            resolution: The number of bits representing each variable.
+            shots: The number of times simulated annealing runs to find the solution.
+            penalty_coefficient: Coefficient used to enforce constraints in the model.
+            penalty_ratio: Ratio used to calculate penalty coefficients.
+            post_processing_method: Classical optimization method used after simulated annealing.
+            **sampler_kwargs: Additional arguments passed to SimulatedAnnealingSampler.
+        """
+        func, syms = self.generate_affined_func()
+        self.qhd_base = QHD_Base(func, syms, self.info)
+        
+        self.qhd_base.sim_annealing_setup(
+            resolution=resolution,
+            shots=shots,
+            penalty_coefficient=penalty_coefficient,
+            penalty_ratio=penalty_ratio,
+            **sampler_kwargs
         )
         self.shots = shots
         self.post_processing_method = post_processing_method
@@ -165,6 +199,7 @@ class QHD:
         """
         func, syms = self.generate_affined_func()
         self.qhd_base = QHD_Base(func, syms, self.info)
+        
         self.qhd_base.ionq_setup(
             resolution=resolution,
             shots=shots,
@@ -203,6 +238,7 @@ class QHD:
         """
         func, syms = self.generate_affined_func()
         self.qhd_base = QHD_Base(func, syms, self.info)
+        
         self.qhd_base.qutip_setup(
             resolution=resolution,
             shots=shots,
@@ -338,8 +374,10 @@ class QHD:
                 opt_samples.append(None)
                 continue
             sample_start_time = time.time()
-            x0 = jnp.array(samples[k])
             if solver == "TNC":
+                # TNC: Truncated Newton Conjugate Gradient optimizer
+                # Use numpy array with explicit float64 for compatibility with TNC optimizer
+                x0 = np.array(samples[k], dtype=np.float64)
                 result = minimize(
                     f_eval_jit,
                     x0,
@@ -350,6 +388,7 @@ class QHD:
                 )
             elif solver == "IPOPT":
                 import cyipopt
+                x0 = jnp.array(samples[k])
                 result = cyipopt.minimize_ipopt(
                     f_eval_jit,
                     x0,
@@ -473,7 +512,7 @@ class QHD:
             return values
         if isinstance(var, sympy.Symbol):
             return values[self.syms_index[var]]
-        # Otherwise, v is a list of Symbols.
+        # Otherwise, var is a list of Symbols
         return [values[self.syms_index[v]] for v in var]
     
     def solver_param_diagnose(self):

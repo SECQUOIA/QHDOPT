@@ -4,7 +4,7 @@ from typing import List, Dict, Union, Optional
 from sympy import lambdify, Symbol, Function
 import jax.numpy as jnp
 
-from qhdopt.backend import dwave_backend, ionq_backend, qutip_backend
+from qhdopt.backend import dwave_backend, sim_annealing_backend, ionq_backend, qutip_backend
 from qhdopt.response import Response
 from qhdopt.utils.function_preprocessing_utils import decompose_function
 
@@ -26,9 +26,13 @@ class QHD_Base:
         Initializes the QHD_Base class.
 
         Args:
-            func: The function to be optimized.
-            syms: The list of sympy Symbols representing the variables of the function.
+            func: The function to be optimized (for SymPy mode).
+            syms: The list of sympy Symbols representing the variables of the function (for SymPy mode).
             info: Dictionary to store miscellaneous information about the optimization process.
+            Q: Quadratic matrix (for QP mode).
+            b: Linear vector (for QP mode).
+            is_qp: Flag indicating if this is a quadratic program.
+            f_eval: Pre-computed evaluation function (for QP mode).
         """
         self.func = func
         self.syms = syms
@@ -37,6 +41,7 @@ class QHD_Base:
         lambda_numpy = lambdify(syms, func, jnp)
         self.f_eval = lambda x: lambda_numpy(*x)
         self.info = info
+    
 
     def dwave_setup(
         self,
@@ -79,6 +84,37 @@ class QHD_Base:
             chain_strength_ratio=chain_strength_ratio
         )
 
+    def sim_annealing_setup(
+        self,
+        resolution: int,
+        shots: int = 100,
+        penalty_coefficient: float = 0,
+        penalty_ratio: float = 0.75,
+        **sampler_kwargs
+    ) -> None:
+        """
+        Sets up the simulated annealing backend for optimization.
+        This backend runs locally using D-Wave's simulated annealer.
+
+        Args:
+            resolution: Resolution for discretizing variable space.
+            shots: Number of sampling shots for simulated annealing.
+            penalty_coefficient: Coefficient for penalty terms.
+            penalty_ratio: Ratio of penalty terms in the objective function.
+            **sampler_kwargs: Additional arguments passed to SimulatedAnnealingSampler.
+        """
+
+        self.backend = sim_annealing_backend.SimulatedAnnealingBackend(
+            resolution=resolution,
+            dimension=self.dimension,
+            univariate_dict=self.univariate_dict,
+            bivariate_dict=self.bivariate_dict,
+            shots=shots,
+            penalty_coefficient=penalty_coefficient,
+            penalty_ratio=penalty_ratio,
+            **sampler_kwargs
+        )
+
     def ionq_setup(
         self,
         resolution: int,
@@ -90,7 +126,7 @@ class QHD_Base:
         time_discretization: int = 10,
         gamma: float = 5,
         on_simulator: bool = False,
-    ) -> None:
+        ) -> None:
         """
         Sets up the IonQ backend for quantum optimization.
 
@@ -104,6 +140,7 @@ class QHD_Base:
             time_discretization: Number of time steps for discretization.
             gamma: Coefficient for transverse field in quantum annealing.
             on_simulator: Flag to run on simulator instead of actual device.
+            backend: IonQ backend to use ("simulator", "qpu.aria-1", "qpu.aria-2", etc.).
         """
         self.backend = ionq_backend.IonQBackend(
             resolution=resolution,
